@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite the associated paper."
+authors:
+  - family-names: "Maselko"
+    given-names: "Theodore"
+title: "Reproduction code for: Separate and Amplify: Attention's Geometry of Retrieval"
+date-released: 2026-03-31
+preferred-citation:
+  type: unpublished
+  title: "Separate and Amplify: Attention's Geometry of Retrieval"
+  authors:
+    - family-names: "Maselko"
+      given-names: "Theodore"
+  year: 2026
+  notes: "Available in this repository as attn_capacity_paper.pdf"
