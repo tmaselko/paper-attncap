@@ -1,9 +1,9 @@
 
-# Separate and Amplify: Attention's Geometry of Retrieval
+# Separate, Project, and Amplify: Attention's Geometry of Retrieval
 
 ![Visualization of embeddings for a $d_k=3$ trained model](_markdown/embed_d003_pca.png)
 
-This repository contains the TSAR synthetic task, minimal model, and training/repro code for the paper ["Separate and Amplify: Attention's Geometry of Retrieval"](https://zenodo.org/records/19359748). DOI: `10.5281/zenodo.19359748`.
+This repository contains the TSAR synthetic task, minimal model, and training/repro code for the paper ["Separate, Project, and Amplify: Attention's Geometry of Retrieval"](https://zenodo.org/records/19422845) (DOI https://doi.org/10.5281/zenodo.19422845).
 
 ## Usage
 
