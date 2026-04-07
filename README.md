@@ -3,11 +3,11 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19422845.svg)](https://doi.org/10.5281/zenodo.19422845)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-![Plots of embeddings for a $d_k=3$ model, before and after training](_markdown/embed_d003_pca.png)
-*A $d_k=3$ model rearranges 512 symbol embeddings from a point cloud to a sphere with 7.5 to 20 degrees of separation between vectors.*
+![Plots of embeddings for a dk=3 model, before and after training](_markdown/embed_d003_pca.png)
+*A dk=3 model rearranges 512 symbol embeddings from a point cloud to a sphere with 7.5 to 20 degrees of separation between vectors.*
 
 
-**TL;DR:** By decoupling positional confounds, we demonstrate that attention's retrieval capacity is purely geometric and unconstrained by head dimension. Using our Tuple-Structured Associative Recall (TSAR) framework, **a 1-layer Transformer achieves perfect associative recall on 16K-assignment sequences with a head dimension of only $d_k=6$ and training on sequences of no more than 1K assignments.**
+**TL;DR:** By decoupling positional confounds, we demonstrate that attention's retrieval capacity is purely geometric and unconstrained by head dimension. Using our Tuple-Structured Associative Recall (TSAR) framework, **a 1-layer Transformer achieves perfect associative recall on 16K-assignment sequences with a head dimension of only dk=6 and training on sequences of no more than 1K assignments.**
 
 This repository contains the minimal model, the TSAR synthetic task, and the complete reproduction code for the paper: ["Separate, Project, and Amplify: Attention's Geometry of Retrieval"](https://zenodo.org/records/19422845).
 
