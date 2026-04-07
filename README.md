@@ -82,7 +82,7 @@ To attention, all `Q` and `K` are dense spherical codes (or superpositions, in t
 
 ### Capacity
 
-The "unbounded" descriptor for dense spherical codes is not hyperbolic. For a single-key, single-value associative recall task like TSAR, we see this density exploited to encode each possible symbol as a unique feature, which permits their direct comparison in $Q$ and $K$.
+The "unbounded" descriptor for dense spherical codes is not hyperbolic. For a single-key, single-value associative recall task like TSAR, we see this density exploited to encode each possible symbol as a unique feature, which permits their direct comparison in `Q` and `K`.
 With real numbers, `d_k = 2` is sufficient for any problem size (`construct_model_unitcircle` in `constructions.py`, Section 5.1 in the paper). With finite bits spread across any `d_k`, it approaches or reaches the representational limit of that space (`construct_model_hypergrid` in `constructions.py`, Section 5.3 in the paper). With total bits `B`, capacity approaches `2^B` as long as `d_k >= 2`.
 Trained models can reach remarkable retrieval capacities (Section 5.3.4), but it is difficult to constrain or measure their true "bit usage". On the other hand, the spherical codes they learn tend to be significantly better optimized than the crude lattice codes the paper constructs for similarly-sized models.
 
@@ -97,7 +97,7 @@ Constructed models tested with random-embed and fixed-magnitude constraints (`co
 This is where the interesting predictions and implications of the work lie. These are developed in the paper, based on the data collected by the experiments in this repo.
 
 - Retrieval appears to have self-defeating training dynamics that cripple its own gradients upon formation. If our theories are correct, this places retrieval heads on a deathmarch towards `W_{QK}` gradient loss during training, one that will almost certainly arrive long before the model has finished training.
-- Positional Encodings should be designed with retrieval's mechanisms in mind, but mainstream designs seem to directly interfere with them. This suggests that the mere presence of RoPE or Sinusoidal in a model would significantly reduce its performance on retrieval.
+- Positional Encodings should be designed with retrieval's mechanisms in mind, but mainstream approaches seem to directly interfere with them. This suggests that the mere presence of RoPE or Sinusoidal in a model would significantly reduce its performance on retrieval.
 - Length generalization failures are due to positional encodings not accounting for retrieval's mechanisms. Never-before-seen encodings warp representational geometry into or out of alignment, breaking separation. The magnitudes are no longer applicable for the geometry they are applied to, compounded by an increased context size which by itself may demand higher magnitudes.
 - "Out-of-distribution" can be seen as "never accounted for in the learned spherical code". What hasn't been seen cannot be separated, and what cannot be separated cannot be distinguished.
 - Attention is driven by its inputs. The work it does, the capabilities it has, are wholly defined by the geometry placed in the path of its projections. That geometry is what is shaped to solve a task... or to compensate for a positional encoding applying arbitrary rotations to its dimensions.
