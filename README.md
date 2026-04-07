@@ -108,7 +108,7 @@ This is where the interesting predictions and implications of the work lie. Thes
 If this work saved you time or gave you ideas, please cite as:
 
 ```bibtex
-@misc{maselko_2026_19422845,
+@misc{maselko2026retrieval,
   author       = {Maselko, Theodore},
   title        = {Separate, Project, and Amplify: Attention's Geometry of Retrieval},
   month        = apr,
