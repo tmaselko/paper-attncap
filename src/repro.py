@@ -389,7 +389,7 @@ def generate_mechinterp_tables(model_folder:Path, out_path:Path):
 
 
 def run_base_training(models_dir:Path, charts_dir:Path, repeats:int, base_lr:float, weight_decay:float,
-                      Nd_vals:dict[int,list[int]], needs_pca, device, emb_mult=1):
+                      Nd_vals:dict[int,list[int]], needs_pca, device, emb_mult=1, permit_early_stopping=False):
     T = 16
     needs_pca = set(needs_pca)
 
@@ -436,6 +436,8 @@ def run_base_training(models_dir:Path, charts_dir:Path, repeats:int, base_lr:flo
                     chartmaker.generate_model_pca_charts(str(charts_dir / f'embed_d{d:03d}'), str(model_folder), 'embed.weight')
                     generate_mechinterp_tables(model_folder, charts_dir / f'mechinterp_tables_{d:03d}.txt')
                     needs_pca.remove(d)
+                if report['native']['accuracy'] == 1.0 and permit_early_stopping:
+                    break
 
             gc.collect()
             torch.cuda.empty_cache()
@@ -443,7 +445,7 @@ def run_base_training(models_dir:Path, charts_dir:Path, repeats:int, base_lr:flo
     for d in needs_pca:
         print(f'Could not find a 16K d={d} model with 100% accuracy!')
 
-def run_micromodel_training(models_dir:Path, charts_dir:Path, repeats:int, device):
+def run_micromodel_training(models_dir:Path, charts_dir:Path, dims:list, repeats:int, device, permit_early_stopping=False):
     model_args = [
         # N, d_k, T_frac, lr_base, lr_mult, extra_epochs, weight_decay
         (32, 2, 1, 0.005, 0.85, 20, 0.05),
@@ -452,6 +454,8 @@ def run_micromodel_training(models_dir:Path, charts_dir:Path, repeats:int, devic
         (8192, 5, 16, 0.01, 0.85, 16, 0.15),
         (16384, 6, 16, 0.01, 0.9, 20, 0.15),
     ]
+    if dims:
+        model_args = [x for x in model_args if x[1] in dims]
 
     needs_pca = set([3])
     batches = 64
@@ -497,6 +501,8 @@ def run_micromodel_training(models_dir:Path, charts_dir:Path, repeats:int, devic
             if d in needs_pca and report['native']['accuracy'] == 1.0:
                 chartmaker.generate_model_pca_charts(str(charts_dir / f'embed_d{d:03d}'), str(model_folder), 'embed.weight')
                 needs_pca.remove(d)
+            if report['native']['accuracy'] == 1.0 and permit_early_stopping:
+                break
 
         gc.collect()
         torch.cuda.empty_cache()
@@ -1097,17 +1103,15 @@ def compare_trained_to_constructed(chart_name:Path, models_dir:Path):
         f.write('\n'.join(all_rows))
 
 
-def main():
+def main(models:Path, charts:Path, run_all_tests:bool, run_all_iterations:bool):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.set_default_device(device)
     def _all_models(subdir):
         return [Path(root) for root, _, files in os.walk(subdir) if 'mech.json' in files]
-
-    models = Path('models')
-    charts = Path('charts')
-
+    
     os.makedirs(models, exist_ok=True)
     os.makedirs(charts, exist_ok=True)
+
 
     models_n16 = models / 'base-16K'
     models_n8 = models / 'base-8K'
@@ -1128,54 +1132,89 @@ def main():
     
     models_micro = models / 'micro'
 
-    PRIMARY_REPEATS = 20
-    AUXILIARY_REPEATS = 10
+    PRIMARY_REPEATS = 20 if run_all_iterations else 1
+    AUXILIARY_REPEATS = 10 if run_all_iterations else 1
 
     DIMS_256  = [8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256]
     DIMS_1024 = DIMS_256 + [320, 384, 448, 512, 640, 768, 896, 1024]
-
-
     base_args:dict = dict(charts_dir=charts, base_lr=2e-1, weight_decay=0.5, device=device)
-    run_base_training(models_n16, repeats=PRIMARY_REPEATS, Nd_vals={16384: DIMS_256}, needs_pca=[8, 16], **base_args)
-    run_base_training(models_n8, repeats=AUXILIARY_REPEATS, Nd_vals={8192: DIMS_1024}, needs_pca=[], **base_args)
-    run_base_training(models_n4, repeats=AUXILIARY_REPEATS, Nd_vals={4096: DIMS_1024}, needs_pca=[], **base_args)
-    run_base_training(models_n2, repeats=AUXILIARY_REPEATS, Nd_vals={2048: DIMS_1024}, needs_pca=[], **base_args)
-    generate_mechinterp_charts(charts_base, _all_models(models_n16))
-    collect_model_tables(charts_base / 'trained_models.txt', [models_n16], with_t=True)
-    
-    generate_grouped_mechinterp_charts(charts_n, ['N=16384', 'N=8192', 'N=4096', 'N=2048'],
-                                       [_all_models(models_n16), _all_models(models_n8), _all_models(models_n4), _all_models(models_n2)])
-    collect_model_tables(charts_n / 'trained_models.txt', [models_n8, models_n4, models_n2])
-
     wd_args:dict = dict(charts_dir=charts, base_lr=2e-1, weight_decay=0.01, device=device)
-    run_base_training(models_wd16, repeats=AUXILIARY_REPEATS, Nd_vals={16384: DIMS_256}, needs_pca=[], **wd_args)
-    run_base_training(models_wd8, repeats=AUXILIARY_REPEATS, Nd_vals={8192: DIMS_1024}, needs_pca=[], **wd_args)
-    run_base_training(models_wd4, repeats=AUXILIARY_REPEATS, Nd_vals={4096: DIMS_1024}, needs_pca=[], **wd_args)
-    generate_grouped_mechinterp_charts(charts_wd, ['N=16384', 'N=8192', 'N=4096'],
-                                       [_all_models(models_wd16), _all_models(models_wd8), _all_models(models_wd4)])
-    collect_model_tables(charts_wd / 'trained_models.txt', [models_wd16, models_wd8, models_wd4])
-
-    run_base_training(models_embed2, repeats=AUXILIARY_REPEATS, emb_mult=2, Nd_vals={8192: DIMS_1024}, needs_pca=[], **base_args)
-    run_base_training(models_embed4, repeats=AUXILIARY_REPEATS, emb_mult=4, Nd_vals={8192: DIMS_1024}, needs_pca=[], **base_args)
-    generate_grouped_mechinterp_charts(charts_embed, ['1x Embed', '2x Embed', '4x Embed'],
-                                       [_all_models(models_n8), _all_models(models_embed2), _all_models(models_embed4)],
-                                       emb_mults=[1, 2, 4])
-    collect_model_tables(charts_embed / 'trained_models.txt', [models_embed2, models_embed4])
 
 
-    run_frozen_embed_training(models / 'frozen', charts, repeats=AUXILIARY_REPEATS, device=device)
 
-    run_micromodel_training(models_micro, charts, repeats=PRIMARY_REPEATS, device=device)
-    collect_model_tables(charts / 'trained_models_micro.txt', [models_micro], with_t=True)
-    compare_trained_to_constructed(charts / 'trained_vs_hypergrid.txt', models_micro)
+    st = time.monotonic()
+
+
+    if not run_all_tests:
+        run_micromodel_training(models_micro, charts, dims=[3, 6], repeats=10, device=device, permit_early_stopping=True)
+        collect_model_tables(charts / 'trained_models_micro.txt', [models_micro], with_t=True)
+        compare_trained_to_constructed(charts / 'trained_vs_hypergrid.txt', models_micro)
+
+        run_base_training(models_n16, repeats=10, Nd_vals={16384: [8, 16]}, needs_pca=[8, 16], **base_args, permit_early_stopping=True)
+        generate_mechinterp_charts(charts_base, _all_models(models_n16))
+        collect_model_tables(charts_base / 'trained_models.txt', [models_n16], with_t=True)
+
+    else:
+
+        run_base_training(models_n16, repeats=PRIMARY_REPEATS, Nd_vals={16384: DIMS_256}, needs_pca=[8, 16], **base_args)
+        run_base_training(models_n8, repeats=AUXILIARY_REPEATS, Nd_vals={8192: DIMS_1024}, needs_pca=[], **base_args)
+        run_base_training(models_n4, repeats=AUXILIARY_REPEATS, Nd_vals={4096: DIMS_1024}, needs_pca=[], **base_args)
+        run_base_training(models_n2, repeats=AUXILIARY_REPEATS, Nd_vals={2048: DIMS_1024}, needs_pca=[], **base_args)
+        generate_mechinterp_charts(charts_base, _all_models(models_n16))
+        collect_model_tables(charts_base / 'trained_models.txt', [models_n16], with_t=True)
+        
+        generate_grouped_mechinterp_charts(charts_n, ['N=16384', 'N=8192', 'N=4096', 'N=2048'],
+                                        [_all_models(models_n16), _all_models(models_n8), _all_models(models_n4), _all_models(models_n2)])
+        collect_model_tables(charts_n / 'trained_models.txt', [models_n8, models_n4, models_n2])
+
+        run_base_training(models_wd16, repeats=AUXILIARY_REPEATS, Nd_vals={16384: DIMS_256}, needs_pca=[], **wd_args)
+        run_base_training(models_wd8, repeats=AUXILIARY_REPEATS, Nd_vals={8192: DIMS_1024}, needs_pca=[], **wd_args)
+        run_base_training(models_wd4, repeats=AUXILIARY_REPEATS, Nd_vals={4096: DIMS_1024}, needs_pca=[], **wd_args)
+        generate_grouped_mechinterp_charts(charts_wd, ['N=16384', 'N=8192', 'N=4096'],
+                                        [_all_models(models_wd16), _all_models(models_wd8), _all_models(models_wd4)])
+        collect_model_tables(charts_wd / 'trained_models.txt', [models_wd16, models_wd8, models_wd4])
+
+        run_base_training(models_embed2, repeats=AUXILIARY_REPEATS, emb_mult=2, Nd_vals={8192: DIMS_1024}, needs_pca=[], **base_args)
+        run_base_training(models_embed4, repeats=AUXILIARY_REPEATS, emb_mult=4, Nd_vals={8192: DIMS_1024}, needs_pca=[], **base_args)
+        generate_grouped_mechinterp_charts(charts_embed, ['1x Embed', '2x Embed', '4x Embed'],
+                                        [_all_models(models_n8), _all_models(models_embed2), _all_models(models_embed4)],
+                                        emb_mults=[1, 2, 4])
+        collect_model_tables(charts_embed / 'trained_models.txt', [models_embed2, models_embed4])
+
+
+        run_frozen_embed_training(models / 'frozen', charts, repeats=AUXILIARY_REPEATS, device=device)
+
+        run_micromodel_training(models_micro, charts, dims=[],  repeats=PRIMARY_REPEATS, device=device)
+        collect_model_tables(charts / 'trained_models_micro.txt', [models_micro], with_t=True)
+        compare_trained_to_constructed(charts / 'trained_vs_hypergrid.txt', models_micro)
+        
+        run_constructed_randsphere(models / 'rand', charts, repeats=AUXILIARY_REPEATS, device=device)
 
     run_constructed_d2(models / 'unit', charts, device)
     run_constructed_dx(models / 'grid', charts, device)
-    run_constructed_randsphere(models / 'rand', charts, repeats=AUXILIARY_REPEATS, device=device)
 
+    print(f'Finished in {time.monotonic() - st:.01f}')
     
 
+
 if __name__ == '__main__':
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Reproduce charts and tables from the paper")
+    parser.add_argument("--short", action="store_true", help="Minimally test all model variants in the paper, including ablations.")
+    parser.add_argument("--all", action="store_true", help="Reproduce all figures in the paper, including ablations, with all repeats.")
+    args = parser.parse_args()
+
+    if args.short:
+        run_all_tests = True
+        run_all_iterations = False
+    elif args.all:
+        run_all_tests = run_all_iterations = True
+    else:
+        run_all_tests = run_all_iterations = False
+
+    models = Path('models-min')
+    charts = Path('charts-min')
+    main(models, charts, run_all_tests, run_all_iterations)
 
 
