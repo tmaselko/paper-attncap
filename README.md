@@ -6,10 +6,14 @@
 ![Plots of embeddings for a `d_k = 3` model, before and after training](_markdown/embed_d003_pca.png)
 *A `d_k = 3` model rearranges 512 symbol embeddings from a point cloud to a sphere with 7.5 to 20 degrees of separation between vectors.*
 
+## Introduction
 
-**TL;DR:** By decoupling positional confounds, we demonstrate that attention's retrieval capacity is purely geometric and unconstrained by head dimension. Using our Tuple-Structured Associative Recall (TSAR) framework, **a 1-layer Transformer achieves perfect associative recall on 16K-assignment sequences with a head dimension of only `d_k = 6` and training on sequences of no more than 1K assignments.**
+This repository contains the minimal model, the TSAR synthetic task, and a complete reproduction for the paper ["Separate, Project, and Amplify: Attention's Geometry of Retrieval"](https://zenodo.org/records/19422845).
 
-This repository contains the minimal model, the TSAR synthetic task, and the complete reproduction code for the paper: ["Separate, Project, and Amplify: Attention's Geometry of Retrieval"](https://zenodo.org/records/19422845).
+Without positional confounds, Transformers solve retrieval effortlessly. Using Tuple-Structured Associative Recall (TSAR) to isolate retrieval, a single-layer, single-head Transformer with a head dimension of six can achieve perfect accuracy on 16384-assignment sequences, while training on sequences of no more than 1024 assignments.
+
+Retrieval is geometric, not dimensional. The paper, and thus this repo, unpack the mechanisms that make retrieval work, alongside the possible implications those mechanisms have for real-world models.
+
 
 ## Quickstart & Usage
 
@@ -70,15 +74,15 @@ Transformer models solve retrieval by **separating** its representations into a 
 
 ### Spherical Code Representations
 
-The use of a spherical code to represent the symbols demonstrates a third category of internal model representation: Dense spherical codes.
+The use of a spherical code to represent the symbols demonstrates a third category of internal model representation: Dense spherical codes, which we can think of as "hyperposition":
 
 - **Orthogonality** can represent a linear number of features, all totally independent within a single vector.
 - **Superposition** can represent an exponential number of features, but interference prevents them all from being present simultaneously.
-- **Dense Spherical Codes** can represent an unbounded number of features, but they interfere so heavily that only a tiny fraction of them can be simultaneously present in a vector.
+- **Dense Spherical Codes (Hyperposition)** can represent an unbounded number of features, but they interfere so heavily that only a tiny fraction of them can be simultaneously present in a vector.
 
-In reality, all three of these are types of spherical codes, with different constraints on their geometry. Dot products treat every single one of them the same: They are different geometric interpretations of the same object, each understandable in terms of the other, and which is most illuminating changes from one to another throughout a model.
+In reality, "spherical code" can broadly describe all three of these geometries. Dot products treat every single one of them the same, after all. Each is a geometric interpretation that can be understood in terms of the others, and which one is most applicable changes throughout a model.
 
-To attention, all `Q` and `K` are dense spherical codes (or superpositions, in the case of fuzzy semantic matching), but the `V` they produce become superpositions. An MLP treats a vector as a superposition with `up_proj`, reinterprets it with orthogonality for activation, only to convert it right back into a superposition with `down_proj`. The hidden state is all of these at once, complete chaos where every subspace can behave differently. Tuple-Structuring aids in taming this, by controlling the separation of these geometrically-distinct subspaces.
+Within attention, all `Q` and `K` are hyperpositions (or superpositions, in the case of fuzzy semantic matching), but the `V` they select are combinations of superpositions. An MLP treats a vector as a superposition with `up_proj`, reinterprets it with orthogonality for activation, only to convert it right back into a superposition with `down_proj`. The hidden state contains all of these at once, complete chaos where every subspace can behave differently. Tuple-Structuring aids in taming this by controlling the separation of these conceptually distinct subspaces.
 
 ### Capacity
 
@@ -94,13 +98,14 @@ Constructed models tested with random-embed and fixed-magnitude constraints (`co
 
 ## Implications
 
-This is where the interesting predictions and implications of the work lie. These are developed in the paper, based on the data collected by the experiments in this repo.
+This is where the interesting predictions and implications of the work lie. Most of these are developed in the paper, based on the data collected by the experiments in this repo.
 
 - Retrieval appears to have self-defeating training dynamics that cripple its own gradients upon formation. If our theories are correct, this places retrieval heads on a deathmarch towards `W_{QK}` gradient loss during training, one that will almost certainly arrive long before the model has finished training.
 - Positional Encodings should be designed with retrieval's mechanisms in mind, but mainstream approaches seem to directly interfere with them. This suggests that the mere presence of RoPE or Sinusoidal in a model would significantly reduce its performance on retrieval.
 - Length generalization failures are due to positional encodings not accounting for retrieval's mechanisms. Never-before-seen encodings warp representational geometry into or out of alignment, breaking separation. The magnitudes are no longer applicable for the geometry they are applied to, compounded by an increased context size which by itself may demand higher magnitudes.
 - "Out-of-distribution" can be seen as "never accounted for in the learned spherical code". What hasn't been seen cannot be separated, and what cannot be separated cannot be distinguished.
 - Attention is driven by its inputs. The work it does, the capabilities it has, are wholly defined by the geometry placed in the path of its projections. That geometry is what is shaped to solve a task... or to compensate for a positional encoding applying arbitrary rotations to its dimensions.
+- Heterogenous attention heads might be a good idea, leaving some without any positional encodings and varying the head count and dimension between model layers.
 
 
 ## Citation
