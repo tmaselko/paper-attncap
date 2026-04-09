@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ![Plots of embeddings for a `d_k = 3` model, before and after training](_markdown/embed_d003_pca.png)
-*A `d_k = 3` model rearranges 512 symbol embeddings from a point cloud to a sphere with 7.5 to 20 degrees of separation between vectors.*
+*A `d_k = 3` model rearranges 512 symbol embeddings from a point cloud to an emergent spherical code.*
 
 ## Introduction
 
@@ -64,9 +64,9 @@ python -m src.repro --all
 
 ### Tuple-Structured Task Design
 
-Tuple-structuring lets you control the exact semantics of your synthetic task, in a way that propagates through the model for easy post-training analysis. Tuple-Structured Associative Recall (TSAR, implemented in `tsar.py`) is MQAR with all positional confounds removed. Instead of a token sequence, its a token-tuple sequence, where each position in the sequence is a BOS, an assignment, or a retrieval.
+Tuple-Structured Associative Recall (TSAR, implemented in `tsar.py`) is Multi-Query Associative Recall with all positional confounds removed. Instead of a token sequence, its a token-tuple sequence, where each position in the sequence is either the BOS, an assignment, or a retrieval. Tuple structuring lets you control the exact problem scope and semantics of a task, in a way that propagates through the model for easy post-training analysis.
 
-This can be solved surprisingly easily by Transformers, which only require a single layer with a single head to reach perfect accuracy. No positional encodings, no causal masking, not even an MLP is necessary.
+For example, TSAR distills retrieval to its essentials, and can be solved surprisingly easily by Transformers. Only a single layer and a single head is needed, with no positional encodings, no causal masking, not even an MLP. When studying the trained model, you already know what information each region of the hidden state contains, and can partition the model's weights accordingly to see how it handles each one.
 
 ### Retrieval in Three Steps
 
@@ -74,7 +74,7 @@ Transformer models solve retrieval by **separating** its representations into a 
 
 ### Spherical Code Representations
 
-The use of a spherical code to represent the symbols demonstrates a third category of internal model representation: Dense spherical codes, which we can think of as "hyperposition":
+The use of a spherical code to represent key and value symbols demonstrates a third category of internal model representation: Dense spherical codes, which we can think of as "hyperposition":
 
 - **Orthogonality** can represent a linear number of features, all totally independent within a single vector.
 - **Superposition** can represent an exponential number of features, but interference prevents them all from being present simultaneously.
@@ -82,13 +82,18 @@ The use of a spherical code to represent the symbols demonstrates a third catego
 
 In reality, "spherical code" can broadly describe all three of these geometries. Dot products treat every single one of them the same, after all. Each is a geometric interpretation that can be understood in terms of the others, and which one is most applicable changes throughout a model.
 
-Within attention, all `Q` and `K` are hyperpositions (or superpositions, in the case of fuzzy semantic matching), but the `V` they select are combinations of superpositions. An MLP treats a vector as a superposition with `up_proj`, reinterprets it with orthogonality for activation, only to convert it right back into a superposition with `down_proj`. The hidden state contains all of these at once, complete chaos where every subspace can behave differently. Tuple-Structuring aids in taming this by controlling the separation of these conceptually distinct subspaces.
+Within attention, all `Q` and `K` are hyperpositions (or superpositions, in the case of fuzzy semantic matching), but the `V` they select become combinations of superpositions. An MLP treats a vector as a superposition with `up_proj`, reinterprets it with orthogonality for activation, only to convert it right back into a superposition with `down_proj`.
+
+The hidden state contains all of these at once. It's complete chaos, where every subspace and subset can behave differently, making interpretation a nightmare. Tuple structuring aims to tame this with controlled separation of conceptually distinct subspaces, making each one individually inspectable.
 
 ### Capacity
 
 The "unbounded" descriptor for dense spherical codes is not hyperbolic. For a single-key, single-value associative recall task like TSAR, we see this density exploited to encode each possible symbol as a unique feature, which permits their direct comparison in `Q` and `K`.
-With real numbers, `d_k = 2` is sufficient for any problem size (`construct_model_unitcircle` in `constructions.py`, Section 5.1 in the paper). With finite bits spread across any `d_k`, it approaches or reaches the representational limit of that space (`construct_model_hypergrid` in `constructions.py`, Section 5.3 in the paper). With total bits `B`, capacity approaches `2^B` as long as `d_k >= 2`.
-Trained models can reach remarkable retrieval capacities (Section 5.3.4), but it is difficult to constrain or measure their true "bit usage". On the other hand, the spherical codes they learn tend to be significantly better optimized than the crude lattice codes the paper constructs for similarly-sized models.
+
+With real numbers, `d_k = 2` is sufficient for any problem size (`construct_model_unitcircle` in `constructions.py`, Section 5.1 in the paper).
+With finite bits spread across any `d_k`, it approaches or reaches the representational limit of that space (`construct_model_hypergrid` in `constructions.py`, Section 5.3 in the paper). With total bits `B`, capacity approaches `2^B` as long as `d_k >= 2`.
+
+Trained models can reach remarkable retrieval capacities (Section 5.3.4), but it's difficult to constrain or measure their true "bit usage". On the other hand, the spherical codes they learn tend to be significantly better separated than the crude lattice codes the paper constructs for similarly-sized models.
 
 ### What about Hopfield?
 
@@ -96,16 +101,25 @@ Attention is usually attributed an "exponential in `d_k`" storage capacity, base
 
 Constructed models tested with random-embed and fixed-magnitude constraints (`construct_model_randomsphere` in `constructions.py`) show the expected exponential-in-`d_k` sigmoid error curves very clearly. However, trained models, even when their embeddings are frozen to be random unit vectors, will still elevate their magnitude (ie, the "amplify" mechanism) to heavily compress their error curves and maximize error-free capacity.
 
+### What about real models?
+
+TSAR is a toy task, solved by toy models. It lacks even a thousandth of the complexity of real-world LLMs, and doesn't even have the positional awareness required for language processing. How applicable can it be?
+
+By definition of the math that backs Transformers, this geometric understanding of retrieval is almost certainly applicable to all models with that architecture. However, whether it is the whole story, or to what extent its implications are predictive, is a separate and very important question yet to be answered. This research only documents the process and mechanisms discovered in the simplest possible case, and extrapolates from them to produce predictions about the architecture in general.
+
+It provides specific directions to look in to improve positional encodings or training dynamics, but cannot claim to that those directions will be ultimately productive for real-world models. Clarity and simplicity made the analysis easy, but also limits its immediate application. That said...
+
+
 ## Implications
 
-This is where the interesting predictions and implications of the work lie. Most of these are developed in the paper, based on the data collected by the experiments in this repo.
+This is where the interesting predictions and implications of the work lie. These are developed in the paper, based on the data collected by the experiments in this repo.
 
-- Retrieval appears to have self-defeating training dynamics that cripple its own gradients upon formation. If our theories are correct, this places retrieval heads on a deathmarch towards `W_{QK}` gradient loss during training, one that will almost certainly arrive long before the model has finished training.
-- Positional Encodings should be designed with retrieval's mechanisms in mind, but mainstream approaches seem to directly interfere with them. This suggests that the mere presence of RoPE or Sinusoidal in a model would significantly reduce its performance on retrieval.
-- Length generalization failures are due to positional encodings not accounting for retrieval's mechanisms. Never-before-seen encodings warp representational geometry into or out of alignment, breaking separation. The magnitudes are no longer applicable for the geometry they are applied to, compounded by an increased context size which by itself may demand higher magnitudes.
-- "Out-of-distribution" can be seen as "never accounted for in the learned spherical code". What hasn't been seen cannot be separated, and what cannot be separated cannot be distinguished.
+- Retrieval appears to have self-defeating training dynamics. If our theories are correct, once a retrieval head forms it is on a deathmarch towards losing `W_{QK}` gradients during training, which will almost certainly occur long before the model has finished training.
+- Mainstream Positional Encoding approaches appear to directly interfere with retrieval's mechanisms. This suggests that the mere presence of RoPE or Sinusoidal embeddings in a model would significantly reduce its performance on retrieval, which has so far been borne out in preliminary followup experiments.
+- Length generalization failures also seem primarily attributable to positional encodings. Never-before-seen encodings warp representational geometry into or out of alignment, breaking separation. The magnitudes are no longer applicable for the geometry they are applied to, compounded by an increased context size which by itself may demand higher magnitudes.
+- "Out-of-distribution" can be seen as "never accounted for in the learned spherical code". What hasn't been seen cannot be separated, and what hasn't been separated cannot be distinguished.
 - Attention is driven by its inputs. The work it does, the capabilities it has, are wholly defined by the geometry placed in the path of its projections. That geometry is what is shaped to solve a task... or to compensate for a positional encoding applying arbitrary rotations to its dimensions.
-- Heterogenous attention heads might be a good idea, leaving some without any positional encodings and varying the head count and dimension between model layers.
+
 
 
 ## Citation
